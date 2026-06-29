@@ -33,6 +33,7 @@ struct ARCameraView: UIViewRepresentable {
         coordinator.trackingSession.pause()
     }
 
+    @MainActor
     final class Coordinator: NSObject, ARSessionDelegate {
         var sceneState: SceneState
         let cameraController: OrbitCameraController
