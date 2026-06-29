@@ -63,6 +63,20 @@ the result to the photo library.
    structured export of the blocking / camera path (shot list, transforms)
    for downstream tools.
 
+## Platform support
+
+- **iPhone + iPad (universal).** `TARGETED_DEVICE_FAMILY = "1,2"`; iPad
+  landscape orientations are declared and pointer/trackpad input is enabled.
+  iPad needs no separate project or port.
+- **Installation requires ARKit** (`UIRequiredDeviceCapabilities = arkit`), so
+  the app runs on ARKit-capable iPads only (effectively iPad 5th gen / 2017 and
+  later). Camera mode additionally guards on
+  `ARWorldTrackingConfiguration.isSupported`.
+- **No Android support.** The stack is fully Apple-native (SwiftUI, RealityKit,
+  ARKit, AVFoundation, Photos); there is no shared/portable layer. An Android
+  build would be a separate app (Kotlin + ARCore + a 3D engine) or a
+  cross-platform rewrite (Unity/Flutter), not a modification of this codebase.
+
 ## Build / test verification status
 
 - **Local machine:** no `Xcode.app` is installed — only the Command Line
