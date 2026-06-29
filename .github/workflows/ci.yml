@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Build & Test (unsigned)
+    runs-on: macos-latest
+
+    env:
+      PROJECT: "film space.xcodeproj"
+      SCHEME: "film space"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: List schemes
+        run: |
+          xcodebuild -list -project "$PROJECT"
+
+      - name: List available simulators
+        run: |
+          xcrun simctl list devices available || true
+
+      # NOTE: The project targets iOS 26.0 and needs the iOS 26 SDK (Xcode 26).
+      # GitHub-hosted runners may not yet provide that SDK; if so, the build and
+      # test steps below will fail until a compatible runner image is available.
+      # See AUDIT.md ("CI caveat").
+
+      - name: Build (no code signing)
+        run: |
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Test (no code signing)
+        run: |
+          # Pick the first available iPhone simulator so we don't hard-code a
+          # device that the runner may not have installed.
+          DEVICE=$(xcrun simctl list devices available | grep -Eo 'iPhone [0-9][^(]*' | head -n 1 | sed 's/[[:space:]]*$//')
+          if [ -z "$DEVICE" ]; then
+            echo "No iPhone simulator available on this runner; skipping tests."
+            exit 0
+          fi
+          echo "Using simulator: $DEVICE"
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
+            CODE_SIGNING_ALLOWED=NO \
+            test
