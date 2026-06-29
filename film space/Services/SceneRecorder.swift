@@ -8,6 +8,13 @@ import Photos
 import RealityKit
 import UIKit
 
+/// Outcome of attempting to start a recording, reported back so the UI can
+/// reflect a real failure instead of a recording that silently writes nothing.
+enum RecordingStartResult {
+    case started
+    case failed(String)
+}
+
 // Records the rendered ARView contents (scene only, no SwiftUI overlay) plus
 // microphone audio to a video file and saves it to the photo library.
 // Snapshots are taken on the main thread; all encoding happens off-main.
@@ -25,15 +32,29 @@ final class SceneRecorder: NSObject {
     private let audioQueue = DispatchQueue(label: "com.filmspace.audio")
     private var audioConfigured = false
 
-    func start(arView: ARView) {
+    func start(arView: ARView, onResult: @escaping (RecordingStartResult) -> Void) {
         guard !isRecording else { return }
         self.arView = arView
-        isRecording = true
 
         let scale = arView.contentScaleFactor
         let pixelWidth = Int(arView.bounds.width * scale)
         let pixelHeight = Int(arView.bounds.height * scale)
-        writer.prepare(sourceWidth: pixelWidth, sourceHeight: pixelHeight)
+        guard pixelWidth > 0, pixelHeight > 0 else {
+            onResult(.failed("The camera view isn't ready yet."))
+            return
+        }
+
+        isRecording = true
+
+        // The writer is prepared off-main; report success only once it is
+        // actually writing, otherwise surface the failure so the recording
+        // does not silently produce an empty file.
+        writer.prepare(sourceWidth: pixelWidth, sourceHeight: pixelHeight) { [weak self] didStartWriting in
+            Task { @MainActor in
+                guard let self, self.isRecording else { return }
+                onResult(didStartWriting ? .started : .failed("Couldn't start the video recorder."))
+            }
+        }
 
         configureAudioIfNeeded()
         startAudio()
@@ -142,9 +163,10 @@ private final class MediaWriter: @unchecked Sendable {
     private var size: (width: Int, height: Int)?
     private var sessionStarted = false
 
-    func prepare(sourceWidth: Int, sourceHeight: Int) {
+    func prepare(sourceWidth: Int, sourceHeight: Int, completion: @escaping (Bool) -> Void) {
         queue.async { [weak self] in
-            self?.setup(sourceWidth: sourceWidth, sourceHeight: sourceHeight)
+            let didStartWriting = self?.setup(sourceWidth: sourceWidth, sourceHeight: sourceHeight) ?? false
+            completion(didStartWriting)
         }
     }
 
@@ -215,7 +237,10 @@ private final class MediaWriter: @unchecked Sendable {
         sessionStarted = true
     }
 
-    private func setup(sourceWidth: Int, sourceHeight: Int) {
+    /// Returns true only if the writer was created and actually started
+    /// writing; false on any failure so the caller can surface it.
+    @discardableResult
+    private func setup(sourceWidth: Int, sourceHeight: Int) -> Bool {
         let longSide = max(sourceWidth, sourceHeight)
         let scale = longSide > maxLongSide ? Double(maxLongSide) / Double(longSide) : 1
         let width = max(2, Int((Double(sourceWidth) * scale).rounded())) & ~1
@@ -223,7 +248,7 @@ private final class MediaWriter: @unchecked Sendable {
 
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("film-space-\(UUID().uuidString).mov")
-        guard let writer = try? AVAssetWriter(url: outputURL, fileType: .mov) else { return }
+        guard let writer = try? AVAssetWriter(url: outputURL, fileType: .mov) else { return false }
 
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
@@ -252,19 +277,20 @@ private final class MediaWriter: @unchecked Sendable {
         let audioInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
         audioInput.expectsMediaDataInRealTime = true
 
-        guard writer.canAdd(videoInput) else { return }
+        guard writer.canAdd(videoInput) else { return false }
         writer.add(videoInput)
         if writer.canAdd(audioInput) {
             writer.add(audioInput)
             self.audioInput = audioInput
         }
 
-        guard writer.startWriting() else { return }
+        guard writer.startWriting() else { return false }
 
         self.writer = writer
         self.videoInput = videoInput
         self.adaptor = adaptor
         self.url = outputURL
         self.size = (width, height)
+        return true
     }
 }

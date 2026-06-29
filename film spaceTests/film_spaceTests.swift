@@ -98,6 +98,73 @@ struct SceneStateTests {
     }
 }
 
+// MARK: - RecordingState
+
+struct RecordingStateTests {
+
+    @Test func startsIdle() {
+        let state = SceneState()
+        #expect(state.recordingState == .idle)
+        #expect(state.isRecording == false)
+        #expect(state.recordingFailureMessage == nil)
+    }
+
+    @Test func toggleFromIdleEntersStarting() {
+        let state = SceneState()
+        state.toggleRecording()
+        #expect(state.recordingState == .starting)
+        #expect(state.isRecording == true) // bridge: starting counts as recording
+    }
+
+    @Test func confirmStartMovesStartingToRecording() {
+        let state = SceneState()
+        state.toggleRecording()
+        state.recordingDidStart()
+        #expect(state.recordingState == .recording)
+        #expect(state.isRecording == true)
+    }
+
+    @Test func confirmStartIsIgnoredWhenNotStarting() {
+        let state = SceneState()
+        state.recordingDidStart() // nothing to confirm
+        #expect(state.recordingState == .idle)
+    }
+
+    @Test func failureIsRepresentedAndSurfaced() {
+        let state = SceneState()
+        state.toggleRecording()
+        state.recordingDidFail("Couldn't start the video recorder.")
+        #expect(state.recordingState == .failed(reason: "Couldn't start the video recorder."))
+        #expect(state.isRecording == false) // a failed capture is NOT "recording"
+        #expect(state.recordingFailureMessage == "Couldn't start the video recorder.")
+    }
+
+    @Test func toggleFromFailedClearsFailureAndRestarts() {
+        let state = SceneState()
+        state.recordingDidFail("boom")
+        state.toggleRecording()
+        #expect(state.recordingState == .starting)
+        #expect(state.recordingFailureMessage == nil)
+    }
+
+    @Test func toggleWhileRecordingStops() {
+        let state = SceneState()
+        state.toggleRecording()
+        state.recordingDidStart()
+        state.toggleRecording()
+        #expect(state.recordingState == .idle)
+        #expect(state.isRecording == false)
+    }
+
+    @Test func forceStopReturnsToIdle() {
+        let state = SceneState()
+        state.toggleRecording()
+        state.recordingDidStart()
+        state.forceStopRecording()
+        #expect(state.recordingState == .idle)
+    }
+}
+
 // MARK: - OrbitCameraController
 
 struct OrbitCameraControllerTests {

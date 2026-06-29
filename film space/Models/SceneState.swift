@@ -11,6 +11,16 @@ enum AppMode: String, CaseIterable {
     case camera = "Camera"
 }
 
+/// Explicit lifecycle for a recording so a *failed* capture is representable
+/// and surfaced, instead of a single Bool that can't distinguish "recording"
+/// from "tried to record but the writer never started".
+enum RecordingState: Equatable {
+    case idle
+    case starting
+    case recording
+    case failed(reason: String)
+}
+
 enum FocalLength: Float, CaseIterable {
     case mm35 = 35
     case mm50 = 50
@@ -50,10 +60,52 @@ final class SceneState {
     var humans: [HumanPlacement] = []
     var selectedHumanID: UUID?
     var focalLength: FocalLength = .mm35
-    var isRecording = false
+    private(set) var recordingState: RecordingState = .idle
+
+    /// Backwards-compatible flag the AR view uses to drive the recorder:
+    /// true while a recording is being started or is active.
+    var isRecording: Bool {
+        recordingState == .starting || recordingState == .recording
+    }
+
+    /// User-facing reason when the last recording attempt failed; nil otherwise.
+    var recordingFailureMessage: String? {
+        if case let .failed(reason) = recordingState { return reason }
+        return nil
+    }
 
     func cycleFocalLength() {
         focalLength = focalLength.next
+    }
+
+    // MARK: - Recording state transitions
+
+    /// Record-button intent: begin starting from idle/failed, or stop when a
+    /// recording is already starting or active.
+    func toggleRecording() {
+        switch recordingState {
+        case .idle, .failed:
+            recordingState = .starting
+        case .starting, .recording:
+            recordingState = .idle
+        }
+    }
+
+    /// The recorder confirmed the writer is active.
+    func recordingDidStart() {
+        if recordingState == .starting {
+            recordingState = .recording
+        }
+    }
+
+    /// The recorder could not start (or failed mid-capture).
+    func recordingDidFail(_ reason: String) {
+        recordingState = .failed(reason: reason)
+    }
+
+    /// Force back to idle (e.g. when the Camera view is dismantled).
+    func forceStopRecording() {
+        recordingState = .idle
     }
 
     var selectedHuman: HumanPlacement? {

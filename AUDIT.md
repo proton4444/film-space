@@ -52,9 +52,16 @@ the result to the photo library.
    `FocalLength`, `SceneState`, and `OrbitCameraController`.
 3. **No CI before this patch.** Nothing validated builds or tests on push.
    This branch adds a conservative GitHub Actions workflow (see *CI caveat*).
-4. **Recording state is only a `Bool`.** `SceneState.isRecording` /
-   `SceneRecorder.isRecording` cannot represent a *failed* start or a
-   mid-recording error. A failed capture can still present as "recording".
+4. **Recording state is only a `Bool`.** *(Addressed on
+   `knosso/hardening-recording-state`.)* Previously `SceneState.isRecording`
+   could not represent a *failed* start, so a capture that silently wrote
+   nothing still presented as "recording". It is now an explicit
+   `RecordingState` (`idle`/`starting`/`recording`/`failed(reason)`): the
+   recorder reports whether the `AVAssetWriter` actually started writing, and
+   the record button shows a distinct failed state. A backwards-compatible
+   computed `isRecording` keeps the AR start/stop wiring unchanged.
+   *Remaining gap:* photo-library save denial at stop time is still swallowed
+   (see risk 5).
 5. **Permission denial is mostly silent.** Microphone and photo-library
    permission failures are not surfaced clearly to the user.
 6. **Scene state is not persisted.** Humans, selection, focal length, and
@@ -102,9 +109,8 @@ runner image exists.
 
 ## Recommended next branches
 
-1. **`knosso/hardening-recording-state`** — replace the `Bool` recording flag
-   with an explicit state enum (`idle / starting / recording / failed(reason)`)
-   so failures are representable and surfaced.
+1. ~~`knosso/hardening-recording-state`~~ — **done** (this branch): explicit
+   `RecordingState` enum so failures are representable and surfaced.
 2. **`knosso/hardening-permissions`** — explicit microphone / photo-library
    permission requests with user-visible handling of denial.
 3. **`knosso/feature-project-save-load`** — persist scene state (humans,
