@@ -32,9 +32,10 @@ final class SceneRecorder: NSObject {
     private let audioQueue = DispatchQueue(label: "com.filmspace.audio")
     private var audioConfigured = false
 
+    private static let photoDeniedMessage = "Allow Photos access in Settings to save recordings."
+
     func start(arView: ARView, onResult: @escaping (RecordingStartResult) -> Void) {
         guard !isRecording else { return }
-        self.arView = arView
 
         let scale = arView.contentScaleFactor
         let pixelWidth = Int(arView.bounds.width * scale)
@@ -44,7 +45,37 @@ final class SceneRecorder: NSObject {
             return
         }
 
+        // Reserve the recorder immediately so the per-frame sync loop does not
+        // re-enter start() while a permission prompt is on screen.
         isRecording = true
+
+        // Pre-flight the add-only photo-library permission: there is no point
+        // recording footage we are not allowed to save. Microphone access is
+        // requested by the capture session; if it is denied the recording
+        // continues video-only rather than failing.
+        switch PermissionsService.photoAddOnly {
+        case .denied, .restricted:
+            isRecording = false
+            onResult(.failed(Self.photoDeniedMessage))
+        case .undetermined:
+            PermissionsService.requestPhotoAddOnly { [weak self] permission in
+                Task { @MainActor in
+                    guard let self, self.isRecording else { return }
+                    if permission == .authorized {
+                        self.beginCapture(arView: arView, pixelWidth: pixelWidth, pixelHeight: pixelHeight, onResult: onResult)
+                    } else {
+                        self.isRecording = false
+                        onResult(.failed(Self.photoDeniedMessage))
+                    }
+                }
+            }
+        case .authorized:
+            beginCapture(arView: arView, pixelWidth: pixelWidth, pixelHeight: pixelHeight, onResult: onResult)
+        }
+    }
+
+    private func beginCapture(arView: ARView, pixelWidth: Int, pixelHeight: Int, onResult: @escaping (RecordingStartResult) -> Void) {
+        self.arView = arView
 
         // The writer is prepared off-main; report success only once it is
         // actually writing, otherwise surface the failure so the recording
@@ -65,7 +96,9 @@ final class SceneRecorder: NSObject {
         displayLink = link
     }
 
-    func stop() {
+    /// `onSaved` reports whether the recording was written and saved to the
+    /// photo library, so a silent save failure can be surfaced to the user.
+    func stop(onSaved: ((Bool) -> Void)? = nil) {
         guard isRecording else { return }
         isRecording = false
         displayLink?.invalidate()
@@ -73,8 +106,12 @@ final class SceneRecorder: NSObject {
         stopAudio()
 
         writer.finish { url in
-            if let url {
-                SceneRecorder.saveToPhotos(url)
+            guard let url else {
+                onSaved?(false)
+                return
+            }
+            SceneRecorder.saveToPhotos(url) { saved in
+                onSaved?(saved)
             }
         }
     }
@@ -123,16 +160,18 @@ final class SceneRecorder: NSObject {
         }
     }
 
-    nonisolated private static func saveToPhotos(_ url: URL) {
+    nonisolated private static func saveToPhotos(_ url: URL, completion: @escaping (Bool) -> Void) {
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
             guard status == .authorized || status == .limited else {
                 try? FileManager.default.removeItem(at: url)
+                completion(false)
                 return
             }
             PHPhotoLibrary.shared().performChanges {
                 PHAssetCreationRequest.creationRequestForAssetFromVideo(atFileURL: url)
-            } completionHandler: { _, _ in
+            } completionHandler: { success, _ in
                 try? FileManager.default.removeItem(at: url)
+                completion(success)
             }
         }
     }

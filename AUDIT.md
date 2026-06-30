@@ -62,8 +62,14 @@ the result to the photo library.
    computed `isRecording` keeps the AR start/stop wiring unchanged.
    *Remaining gap:* photo-library save denial at stop time is still swallowed
    (see risk 5).
-5. **Permission denial is mostly silent.** Microphone and photo-library
-   permission failures are not surfaced clearly to the user.
+5. **Permission denial is mostly silent.** *(Addressed on
+   `knosso/hardening-permissions`.)* Recording now pre-flights the add-only
+   photo-library permission via `PermissionsService` and fails with a clear
+   message ("Allow Photos access in Settings…") instead of recording footage it
+   cannot save; a save failure at stop time is likewise surfaced via the
+   `failed` recording state. *Remaining:* microphone denial still falls back to
+   video-only without an explicit on-screen notice (the system prompts on first
+   use).
 6. **Scene state is not persisted.** Humans, selection, focal length, and
    camera pose are lost when the app terminates; there is no save/load.
 7. **No camera-path export.** The recorded video is saved, but there is no
@@ -98,21 +104,27 @@ the result to the photo library.
   they have **not been executed** in this environment. They must be run on a
   machine with Xcode 26 + an iOS 26 simulator.
 
-### CI caveat
+### CI status
 
-GitHub-hosted macOS runners may not yet ship **Xcode 26 / the iOS 26 SDK**. If
-the CI job fails at the build/test step because no iOS 26 SDK is available, that
-is expected until GitHub provides a compatible image. The workflow is written
-to print the available Xcode version and schemes first so the runner's
-capability is visible in the logs; bump the `xcode-version` once a compatible
-runner image exists.
+GitHub-hosted `macos-latest` runners currently provide **Xcode 26.5** with an
+iPhone 17 Pro simulator, so CI builds the app and runs the unit-test suite on
+the real iOS 26 SDK — the hardening PRs went green there (`BUILD SUCCEEDED` +
+`TEST SUCCEEDED`). The workflow still prints the available Xcode version and
+schemes first, so if a future runner image changes the SDK the logs make it
+visible.
+
+Note: the project relies on Xcode 26 "approachable concurrency" defaults
+(`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`,
+`SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY`). Two determinism fixes were
+needed for reliable builds: `ARCameraView.Coordinator` is annotated `@MainActor`
+explicitly, and the test target imports `Foundation` explicitly.
 
 ## Recommended next branches
 
 1. ~~`knosso/hardening-recording-state`~~ — **done** (this branch): explicit
    `RecordingState` enum so failures are representable and surfaced.
-2. **`knosso/hardening-permissions`** — explicit microphone / photo-library
-   permission requests with user-visible handling of denial.
+2. ~~`knosso/hardening-permissions`~~ — **done**: `PermissionsService` +
+   photo-library pre-flight and save-failure surfacing.
 3. **`knosso/feature-project-save-load`** — persist scene state (humans,
    selection, focal length, camera pose) across launches.
 4. **`knosso/feature-shot-list-camera-path-export`** — export the blocking and
