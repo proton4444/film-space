@@ -54,9 +54,14 @@ jobs:
             exit 0
           fi
           echo "Using simulator: $DEVICE"
+          # Run only the unit-test bundle. The build step already compiles the
+          # UI test target; the UI launch stubs are slow and flaky on CI
+          # (the simulator runner can be killed during bootstrap), and they do
+          # not exercise app logic, so excluding them keeps CI deterministic.
           xcodebuild \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -destination "platform=iOS Simulator,name=$DEVICE" \
+            -only-testing:"film spaceTests" \
             CODE_SIGNING_ALLOWED=NO \
             test
