@@ -171,7 +171,12 @@ struct ARCameraView: UIViewRepresentable {
                     }
                 }
             } else if !sceneState.isRecording, recorder.isRecording {
-                recorder.stop()
+                recorder.stop { [weak sceneState] saved in
+                    guard !saved else { return }
+                    Task { @MainActor in
+                        sceneState?.recordingDidFail("Couldn't save the recording to your photo library. Check Photos access in Settings.")
+                    }
+                }
             }
         }
 

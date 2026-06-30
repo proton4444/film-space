@@ -116,6 +116,7 @@ from the `simctl list` output.
 
 - Simulator runs cannot validate ARKit tracking, the recorded camera path, or
   real audio capture.
-- No CI-validated build/test run exists for the iOS 26 SDK on GitHub-hosted
-  runners yet (see `AUDIT.md`); the provided CI workflow is conservative and
-  may need an Xcode-version bump once GitHub runners ship Xcode 26.
+- CI **is** validated on the iOS 26 SDK: GitHub-hosted `macos-latest` runners
+  currently provide **Xcode 26.5** with an iPhone 17 Pro simulator, and the
+  workflow builds and runs the unit tests green there. (Local machines without
+  full Xcode still cannot build — see the requirements above.)

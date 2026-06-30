@@ -10,6 +10,8 @@
 
 import Testing
 import Foundation
+import AVFoundation
+import Photos
 import simd
 @testable import film_space
 
@@ -96,6 +98,26 @@ struct SceneStateTests {
 
         #expect(firstAfter == firstBefore)
         #expect(secondAfter == secondBefore + 0.5)
+    }
+}
+
+// MARK: - PermissionsService
+
+struct PermissionsServiceTests {
+
+    @Test func mapsMicrophoneAuthorizationStatus() {
+        #expect(PermissionsService.map(AVAuthorizationStatus.authorized) == .authorized)
+        #expect(PermissionsService.map(AVAuthorizationStatus.denied) == .denied)
+        #expect(PermissionsService.map(AVAuthorizationStatus.restricted) == .restricted)
+        #expect(PermissionsService.map(AVAuthorizationStatus.notDetermined) == .undetermined)
+    }
+
+    @Test func mapsPhotoAuthorizationStatus() {
+        #expect(PermissionsService.map(PHAuthorizationStatus.authorized) == .authorized)
+        #expect(PermissionsService.map(PHAuthorizationStatus.limited) == .authorized) // limited can still add
+        #expect(PermissionsService.map(PHAuthorizationStatus.denied) == .denied)
+        #expect(PermissionsService.map(PHAuthorizationStatus.restricted) == .restricted)
+        #expect(PermissionsService.map(PHAuthorizationStatus.notDetermined) == .undetermined)
     }
 }
 
