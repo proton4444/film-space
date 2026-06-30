@@ -125,11 +125,17 @@ explicitly, and the test target imports `Foundation` explicitly.
    `RecordingState` enum so failures are representable and surfaced.
 2. ~~`knosso/hardening-permissions`~~ — **done**: `PermissionsService` +
    photo-library pre-flight and save-failure surfacing.
-3. **`knosso/feature-project-save-load`** — persist scene state (humans,
-   selection, focal length, camera pose) across launches.
-4. **`knosso/feature-shot-list-camera-path-export`** — export the blocking and
-   camera path (transforms / shot list) for downstream AI video tools.
+3. ~~`knosso/feature-project-save-load`~~ — **done**: `ProjectSnapshot` +
+   `ProjectStore` persist humans, selection, lens, and edit camera pose across
+   launches (best-effort; corrupt/absent data falls back to an empty studio).
+4. **`knosso/feature-shot-list-camera-path-export`** — *(open)* export the
+   blocking and camera path (transforms / shot list) for downstream AI video
+   tools. Deferred: needs a format + UX decision (e.g. JSON camera path vs.
+   USDZ vs. a shot-list sheet) and Camera-mode pose capture wiring.
 
-> Per the engagement constraints, the recording-state rewrite (#1) is **not**
-> implemented in this foundation branch. It is captured here as the next branch
-> only.
+## Status (this pass)
+
+All hardening items (1–3 above) are merged to `main` and verified green on CI
+(GitHub `macos-latest` / Xcode 26.5 / iPhone simulator): build succeeds and the
+full unit-test suite passes on the real iOS 26 SDK. Only the export feature (4)
+remains, intentionally deferred for a product decision.
