@@ -29,7 +29,7 @@ struct ARCameraView: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
         coordinator.recorder.stop()
-        coordinator.sceneState.isRecording = false
+        coordinator.sceneState.forceStopRecording()
         coordinator.trackingSession.pause()
     }
 
@@ -162,7 +162,14 @@ struct ARCameraView: UIViewRepresentable {
         private func syncRecording() {
             guard let arView else { return }
             if sceneState.isRecording, !recorder.isRecording {
-                recorder.start(arView: arView)
+                recorder.start(arView: arView) { [weak sceneState] result in
+                    switch result {
+                    case .started:
+                        sceneState?.recordingDidStart()
+                    case .failed(let reason):
+                        sceneState?.recordingDidFail(reason)
+                    }
+                }
             } else if !sceneState.isRecording, recorder.isRecording {
                 recorder.stop()
             }

@@ -128,27 +128,36 @@ struct StudioToolbar: View {
 
     private var recordButton: some View {
         Button {
-            sceneState.isRecording.toggle()
+            sceneState.toggleRecording()
         } label: {
             ZStack {
                 Circle()
                     .fill(.ultraThinMaterial)
-                    .overlay(Circle().strokeBorder(.white.opacity(0.15)))
+                    .overlay(Circle().strokeBorder(recordButtonStroke, lineWidth: 1))
                     .frame(width: 56, height: 56)
 
-                if sceneState.isRecording {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.red)
-                        .frame(width: 22, height: 22)
-                } else {
+                switch sceneState.recordingState {
+                case .idle:
                     Circle()
                         .fill(.red)
                         .frame(width: 30, height: 30)
+                case .starting, .recording:
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(.red)
+                        .frame(width: 22, height: 22)
+                case .failed:
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.red)
                 }
             }
             .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
+    }
+
+    private var recordButtonStroke: Color {
+        sceneState.recordingFailureMessage == nil ? .white.opacity(0.15) : .red.opacity(0.8)
     }
 
     private var focalLengthButton: some View {
