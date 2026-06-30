@@ -245,3 +245,68 @@ struct OrbitCameraControllerTests {
         #expect(m.columns.3.z == 5)
     }
 }
+
+// MARK: - Project persistence
+
+struct ProjectPersistenceTests {
+
+    @Test func snapshotRoundTripsThroughJSON() throws {
+        let scene = SceneState()
+        scene.addHuman()
+        scene.addHuman()
+        scene.rotateSelectedHuman(by: 0.7)
+        scene.focalLength = .mm75
+        let camera = OrbitCameraController()
+        camera.restore(azimuth: 1.2, elevation: 0.5, distance: 9, target: [1, 2, 3])
+
+        let snapshot = ProjectSnapshot(scene: scene, camera: camera)
+        let data = try JSONEncoder().encode(snapshot)
+        let decoded = try JSONDecoder().decode(ProjectSnapshot.self, from: data)
+        #expect(decoded == snapshot)
+    }
+
+    @Test func applyRestoresSceneAndCamera() {
+        let scene = SceneState()
+        scene.addHuman()
+        scene.focalLength = .mm200
+        let camera = OrbitCameraController()
+        camera.restore(azimuth: 0.9, elevation: -0.3, distance: 12, target: [4, 5, 6])
+        let snapshot = ProjectSnapshot(scene: scene, camera: camera)
+
+        let restoredScene = SceneState()
+        let restoredCamera = OrbitCameraController()
+        snapshot.apply(to: restoredScene, camera: restoredCamera)
+
+        #expect(restoredScene.humans.count == 1)
+        #expect(restoredScene.humans[0].id == scene.humans[0].id)
+        #expect(restoredScene.focalLength == .mm200)
+        #expect(restoredCamera.azimuth == 0.9)
+        #expect(restoredCamera.distance == 12)
+        #expect(restoredCamera.target == [4, 5, 6])
+    }
+
+    @Test func restoreDropsStaleSelection() {
+        let scene = SceneState()
+        scene.restore(humans: [], selectedHumanID: UUID(), focalLength: .mm35)
+        #expect(scene.selectedHumanID == nil)
+    }
+
+    @Test func storeSavesAndLoadsAtCustomURL() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("filmspace-test-\(UUID().uuidString).json")
+        defer { ProjectStore.clear(at: url) }
+
+        let scene = SceneState()
+        scene.addHuman()
+        let snapshot = ProjectSnapshot(scene: scene, camera: OrbitCameraController())
+
+        ProjectStore.save(snapshot, to: url)
+        #expect(ProjectStore.load(from: url) == snapshot)
+    }
+
+    @Test func loadFromMissingURLReturnsNil() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("filmspace-missing-\(UUID().uuidString).json")
+        #expect(ProjectStore.load(from: url) == nil)
+    }
+}

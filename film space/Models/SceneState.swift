@@ -78,6 +78,18 @@ final class SceneState {
         focalLength = focalLength.next
     }
 
+    /// Replaces the blocking state from a restored snapshot. The selection is
+    /// only kept if it still refers to an existing human.
+    func restore(humans: [HumanPlacement], selectedHumanID: UUID?, focalLength: FocalLength) {
+        self.humans = humans
+        if let id = selectedHumanID, humans.contains(where: { $0.id == id }) {
+            self.selectedHumanID = id
+        } else {
+            self.selectedHumanID = nil
+        }
+        self.focalLength = focalLength
+    }
+
     // MARK: - Recording state transitions
 
     /// Record-button intent: begin starting from idle/failed, or stop when a
