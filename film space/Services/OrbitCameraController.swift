@@ -30,6 +30,15 @@ final class OrbitCameraController {
         updateCameraTransform()
     }
 
+    /// Restores the orbit pose from a saved snapshot.
+    func restore(azimuth: Float, elevation: Float, distance: Float, target: SIMD3<Float>) {
+        self.azimuth = azimuth
+        self.elevation = elevation
+        self.distance = distance
+        self.target = target
+        updateCameraTransform()
+    }
+
     func pan(deltaX: Float, deltaY: Float) {
         let cosA = cos(azimuth)
         let sinA = sin(azimuth)
